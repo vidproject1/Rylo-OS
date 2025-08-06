@@ -1,0 +1,63 @@
+# Rylo OS Git Ignore
+
+# Build artifacts
+build/
+*.o
+*.obj
+*.elf
+*.bin
+*.img
+*.iso
+
+# Compiler and linker files
+*.map
+*.lst
+*.sym
+
+# Development tools
+*.swp
+*.swo
+*~
+.vscode/
+*.code-workspace
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Windows specific
+*.tmp
+*.temp
+*.log
+*.cache
+
+# QEMU related
+*.qcow2
+qemu.log
+
+# Checkpoint backups (keep structure but ignore large binaries)
+checkpoints/*/build/
+checkpoints/*/*.img
+checkpoints/*/*.iso
+
+# Documentation build artifacts
+docs/generated/
+*.pdf
+
+# IDE files
+*.vcxproj*
+*.sln
+*.suo
+
+# Test artifacts
+test_results/
+coverage/
+
+# Temporary files
+temp/
+tmp/
