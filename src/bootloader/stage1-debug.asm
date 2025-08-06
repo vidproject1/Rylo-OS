@@ -1,14 +1,6 @@
-; Rylo OS Stage 1 Bootloader (MBR) - Ultra Fast <50ms
-; This is the Master Boot Record that loads Stage 2 as quickly as possible
-; Goal: Minimize everything for maximum speed
-;
-; Memory Layout:
-; 0x7c00 - 0x7dff : Stage 1 (this code) - 512 bytes
-; 0x7e00 - 0x12000: Stage 2 (loaded here) - ~17KB
-; 0x100000        : Kernel loaded here (1MB)
-
-org 0x7c00          ; BIOS loads us here
-bits 16             ; Start in 16-bit real mode
+; Debug Stage 1 - test just the loading part
+org 0x7c00
+bits 16
 
 stage1_start:
     ; === SPEED OPTIMIZATION: Minimal setup ===
@@ -27,12 +19,11 @@ stage1_start:
     mov si, loading_msg
     call print_fast
     
-    ; === LOAD STAGE 2 IN CHUNKS ===
-    ; Load 18 sectors (9KB) which should be enough for basic Stage 2
-    ; Many BIOS implementations fail with >18 sectors per read
+    ; === TEST DISK LOAD ===
+    ; Try to load 34 sectors
     
     mov ah, 0x02        ; BIOS read sectors function
-    mov al, 18          ; Read 18 sectors (safe limit)
+    mov al, 34          ; Read 34 sectors
     mov ch, 0           ; Cylinder 0
     mov cl, 2           ; Start from sector 2 (after MBR)
     mov dh, 0           ; Head 0
@@ -46,9 +37,13 @@ stage1_start:
     mov si, stage2_msg
     call print_fast
     
-    ; === LIGHTNING FAST JUMP TO STAGE 2 ===
-    ; No delays, no additional checks - just jump
-    jmp 0x0000:0x7e00   ; Far jump to Stage 2
+    ; === DON'T JUMP TO STAGE 2 - JUST HALT ===
+    mov si, halt_msg
+    call print_fast
+    
+halt_loop:
+    hlt
+    jmp halt_loop
     
     ; === ULTRA-FAST PRINT FUNCTION ===
 print_fast:
@@ -71,17 +66,11 @@ disk_error:
     hlt                 ; Halt system
     
     ; === DATA SECTION (minimal strings for speed) ===
-loading_msg db 'Rylo', 0
-stage2_msg  db 'Fast!', 0  
+loading_msg db 'LOAD', 0
+stage2_msg  db 'OK', 0  
+halt_msg    db 'HALT', 0
 error_msg   db 'ERR', 0
 
     ; === PADDING AND BOOT SIGNATURE ===
     times 510-($-$$) db 0   ; Pad to 510 bytes
     dw 0xaa55               ; Boot sector signature
-
-; === PERFORMANCE NOTES ===
-; - Total code: ~60 bytes (lots of room for optimization)
-; - Batch disk read: 8 sectors in single operation
-; - Minimal string output for visual feedback
-; - No unnecessary delays or complex error handling
-; - Direct far jump to Stage 2 with zero overhead

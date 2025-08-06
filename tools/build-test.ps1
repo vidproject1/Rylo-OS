@@ -1,31 +1,14 @@
-# Test Build Script for Rylo OS Development Environment
-Write-Host "Building Rylo OS test bootloader..." -ForegroundColor Green
+# Build simple two-stage test
+Write-Host "Building simple two-stage test..." -ForegroundColor Green
 
-# Build bootloader
-Write-Host "Assembling bootloader..." -ForegroundColor Yellow
-nasm -f bin src\bootloader\test_boot.asm -o build\test_boot.bin
+# Build bootloaders
+nasm -f bin src\bootloader\stage1-simple.asm -o build\stage1-simple.bin
+nasm -f bin src\bootloader\stage2-simple.asm -o build\stage2-simple.bin
 
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Build failed!" -ForegroundColor Red
-    exit 1
-}
+# Create disk image
+dd if=/dev/zero of=build\test-simple.img bs=512 count=100 2>$null
+dd if=build\stage1-simple.bin of=build\test-simple.img conv=notrunc 2>$null
+dd if=build\stage2-simple.bin of=build\test-simple.img bs=512 seek=1 conv=notrunc 2>$null
 
-Write-Host "Creating disk image..." -ForegroundColor Yellow
-# Create 1MB disk image
-$diskImage = "build\rylo_test.img"
-$bootloader = "build\test_boot.bin"
-
-# Create empty 1MB file
-$null = New-Item -Path $diskImage -ItemType File -Force
-$stream = [System.IO.File]::OpenWrite($diskImage)
-$stream.SetLength(1048576)  # 1MB
-$stream.Close()
-
-# Copy bootloader to first sector
-$bootData = [System.IO.File]::ReadAllBytes($bootloader)
-$imageData = [System.IO.File]::ReadAllBytes($diskImage)
-[System.Array]::Copy($bootData, 0, $imageData, 0, $bootData.Length)
-[System.IO.File]::WriteAllBytes($diskImage, $imageData)
-
-Write-Host "Build complete: $diskImage" -ForegroundColor Green
-Write-Host "Test with QEMU using the run-test.ps1 script" -ForegroundColor Cyan
+Write-Host "Built! Test with:" -ForegroundColor Green
+Write-Host "qemu-system-x86_64 -drive file=build\test-simple.img,format=raw -m 128M" -ForegroundColor Cyan

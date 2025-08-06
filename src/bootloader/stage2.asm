@@ -168,10 +168,14 @@ setup_long_mode_fast:
     or eax, 3           ; Present + Write
     mov [page_table_l3], eax
     
-    ; Identity map first 2MB with 2MB pages
+    ; Identity map first 4MB with 2MB pages for kernel at 1MB
     mov eax, 0x00000000
     or eax, 0x83        ; Present + Write + Page Size (2MB pages)
-    mov [page_table_l2], eax
+    mov [page_table_l2], eax      ; Map 0-2MB
+    
+    mov eax, 0x00200000
+    or eax, 0x83        ; Present + Write + Page Size (2MB pages)  
+    mov [page_table_l2 + 8], eax  ; Map 2-4MB
     
     ret
 
@@ -179,39 +183,92 @@ setup_long_mode_fast:
 bits 64
 long_mode_start:
     ; === WE'RE NOW IN 64-BIT LONG MODE! ===
-    ; Set up 64-bit segments (be more careful)
+    ; Set up 64-bit segments
     mov ax, 0x10        ; Use data segment from GDT
     mov ds, ax
     mov es, ax
     mov fs, ax  
     mov gs, ax
     mov ss, ax
-    mov rsp, 0x7c00     ; 64-bit stack pointer
+    mov rsp, 0x90000    ; Set stack above kernel load area
     
-    ; === SUCCESS! DISPLAY MESSAGE ===
-    ; Write directly to VGA text buffer for visibility
-    mov rax, 0xB8000    ; VGA text buffer address
-    mov rbx, 0x0F00     ; White on black attribute
-    
-    ; Write "SUCCESS!" to screen
-    mov byte [rax], 'S'
-    mov byte [rax+1], 0x0F
-    mov byte [rax+2], 'U' 
+    ; === SHOW STAGE2 MESSAGE ===
+    ; Show "STAGE2" message first
+    mov rax, 0xB8000    ; VGA text buffer address  
+    mov byte [rax+2], 'S'
     mov byte [rax+3], 0x0F
-    mov byte [rax+4], 'C'
+    mov byte [rax+4], 'T'
     mov byte [rax+5], 0x0F
-    mov byte [rax+6], 'C'
+    mov byte [rax+6], 'A'
     mov byte [rax+7], 0x0F
-    mov byte [rax+8], 'E'
+    mov byte [rax+8], 'G'
     mov byte [rax+9], 0x0F
-    mov byte [rax+10], 'S'
+    mov byte [rax+10], 'E'
     mov byte [rax+11], 0x0F
-    mov byte [rax+12], 'S'
+    mov byte [rax+12], '2'
     mov byte [rax+13], 0x0F
-    mov byte [rax+14], '!'
-    mov byte [rax+15], 0x0F
     
-    ; === INFINITE LOOP TO KEEP SYSTEM RUNNING ===
+    ; === SUCCESS MESSAGE ===
+    ; We made it to 64-bit mode! Show success
+    ; Write "64BIT!" to VGA buffer at 0xB8000
+    mov byte [rax+80], '6'
+    mov byte [rax+81], 0x0F
+    mov byte [rax+82], '4'
+    mov byte [rax+83], 0x0F
+    mov byte [rax+84], 'B'
+    mov byte [rax+85], 0x0F
+    mov byte [rax+86], 'I'
+    mov byte [rax+87], 0x0F
+    mov byte [rax+88], 'T'
+    mov byte [rax+89], 0x0F
+    mov byte [rax+90], '!'
+    mov byte [rax+91], 0x0F
+    
+    ; === LOAD KERNEL ===
+    call load_kernel
+    
+    ; === SHOW LOADING MESSAGE ===
+    mov byte [rax+160], 'K'
+    mov byte [rax+161], 0x0E
+    mov byte [rax+162], 'E'
+    mov byte [rax+163], 0x0E
+    mov byte [rax+164], 'R'
+    mov byte [rax+165], 0x0E
+    mov byte [rax+166], 'N'
+    mov byte [rax+167], 0x0E
+    mov byte [rax+168], 'E'
+    mov byte [rax+169], 0x0E
+    mov byte [rax+170], 'L'
+    mov byte [rax+171], 0x0E
+    
+    ; === JUMP TO KERNEL ===
+    ; The kernel is compiled for 32-bit, so we need to go back to 32-bit mode
+    ; Jump to 32-bit transition code
+    jmp transition_to_32bit
+    
+; === TRANSITION BACK TO 32-BIT FOR KERNEL ===
+transition_to_32bit:
+    ; We need to go from 64-bit back to 32-bit for our C kernel
+    ; This is a bit unusual but necessary since our kernel is 32-bit
+    
+    ; Load 32-bit GDT entry and jump
+    jmp 0x10:kernel_32bit
+
+bits 32
+kernel_32bit:
+    ; Set up 32-bit segments
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+    mov esp, 0x90000    ; 32-bit stack
+    
+    ; Jump to kernel entry point
+    call 0x100000
+    
+    ; If kernel returns (shouldn't happen), halt
 infinite_loop:
     hlt
     jmp infinite_loop
@@ -227,6 +284,20 @@ align 4096
 page_table_l4: times 512 dq 0  ; Level 4 page table (PML4)
 page_table_l3: times 512 dq 0  ; Level 3 page table (PDPT)  
 page_table_l2: times 512 dq 0  ; Level 2 page table (PDT)
+
+; === KERNEL LOADING FUNCTION (64-bit) ===
+bits 64
+load_kernel:
+    ; For simplicity, we'll copy kernel from loaded disk image
+    ; Our build puts kernel at sector 36, which Stage 1 loads along with Stage 2
+    ; So kernel is already in memory at 0x7e00 + (35*512) = 0x7e00 + 17920 = 0x11E00
+    
+    mov rsi, 0x11E00    ; Source: kernel location in loaded memory
+    mov rdi, 0x100000   ; Destination: 1MB
+    mov rcx, 128        ; Copy 128 bytes (more than enough for 65-byte kernel)
+    rep movsb
+    
+    ret
 
 ; === PERFORMANCE ANALYSIS ===
 ; Stage 2 optimizations:
