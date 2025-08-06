@@ -87,6 +87,15 @@ gdt_start:
     db 0x92             ; Access (Present, DPL=0, Data, Read/Write)
     db 0xCF             ; Flags (4KB granularity, 32-bit) + Limit high
     db 0x00             ; Base high
+    
+    ; Code segment descriptor (64-bit) - Selector 0x18
+    ; For long mode - L bit set, D bit clear
+    dw 0x0000           ; Limit low (ignored in 64-bit)
+    dw 0x0000           ; Base low (ignored in 64-bit)
+    db 0x00             ; Base middle (ignored)
+    db 0x9A             ; Access (Present, DPL=0, Code, Execute/Read)
+    db 0x20             ; Flags (L=1 for 64-bit, D=0) + Limit high
+    db 0x00             ; Base high (ignored)
 
 gdt_end:
 
@@ -170,21 +179,39 @@ setup_long_mode_fast:
 bits 64
 long_mode_start:
     ; === WE'RE NOW IN 64-BIT LONG MODE! ===
-    ; Set up 64-bit segments
-    mov ax, 0x20        ; 64-bit data segment
+    ; Set up 64-bit segments (be more careful)
+    mov ax, 0x10        ; Use data segment from GDT
     mov ds, ax
     mov es, ax
     mov fs, ax  
     mov gs, ax
     mov ss, ax
+    mov rsp, 0x7c00     ; 64-bit stack pointer
     
-    ; === SUCCESS! READY FOR KERNEL ===
-    ; At this point, we'd load and jump to the kernel
-    ; For now, let's halt with success
+    ; === SUCCESS! DISPLAY MESSAGE ===
+    ; Write directly to VGA text buffer for visibility
+    mov rax, 0xB8000    ; VGA text buffer address
+    mov rbx, 0x0F00     ; White on black attribute
     
-    ; TODO: Load kernel from disk and jump to it
-    ; For Phase 1, we'll just halt here successfully
+    ; Write "SUCCESS!" to screen
+    mov byte [rax], 'S'
+    mov byte [rax+1], 0x0F
+    mov byte [rax+2], 'U' 
+    mov byte [rax+3], 0x0F
+    mov byte [rax+4], 'C'
+    mov byte [rax+5], 0x0F
+    mov byte [rax+6], 'C'
+    mov byte [rax+7], 0x0F
+    mov byte [rax+8], 'E'
+    mov byte [rax+9], 0x0F
+    mov byte [rax+10], 'S'
+    mov byte [rax+11], 0x0F
+    mov byte [rax+12], 'S'
+    mov byte [rax+13], 0x0F
+    mov byte [rax+14], '!'
+    mov byte [rax+15], 0x0F
     
+    ; === INFINITE LOOP TO KEEP SYSTEM RUNNING ===
 infinite_loop:
     hlt
     jmp infinite_loop
