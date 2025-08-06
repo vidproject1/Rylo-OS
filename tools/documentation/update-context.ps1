@@ -24,16 +24,16 @@ if (Test-Path $ContextFile) {
 # Create today's journal if it doesn't exist
 $JournalFile = Join-Path $ProjectRoot "docs\journal\$Date.md"
 if (-not (Test-Path $JournalFile)) {
-    $JournalTemplate = @"
-# Development Journal - $Date
+    $JournalTemplate = @'
+# Development Journal - {0}
 
 ## Session Summary
-**Start Time**: $(Get-Date -Format "HH:mm UTC")  
+**Start Time**: {1}  
 **Duration**: In Progress  
 **Phase**: Phase 0 - Foundation & Documentation  
 **AI Model**: [Update with current model]
 
-## Today's Objectives
+## Today''s Objectives
 - [ ] [Add objectives]
 
 ## Accomplishments
@@ -57,7 +57,7 @@ if (-not (Test-Path $JournalFile)) {
 ---
 **End of Session Notes**  
 [Final status and notes]
-"@
+'@ -f $Date, (Get-Date -Format "HH:mm UTC")
     $JournalTemplate | Set-Content $JournalFile
     Write-Host "✓ Created journal for $Date" -ForegroundColor Yellow
 }
